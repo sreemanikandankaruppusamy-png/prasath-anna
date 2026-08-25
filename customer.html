@@ -549,28 +549,80 @@ Kaviya RO Water <br><br>
 <div class="toast" id="toast"><span class="dot"></span><span id="toastMsg">Done</span></div>
 
 <script>
-/* ---------------- Shared storage layer (same as admin.html) ---------------- */
-const STORE_KEY = 'sbef_products_v1';
-const ORDER_KEY = 'sbef_orders_v1';
-const SYNC_CHANNEL_NAME = 'sbef_store_sync_v1';
-let syncChannel = null;
-try { syncChannel = new BroadcastChannel(SYNC_CHANNEL_NAME); } catch(err) { syncChannel = null; }
+/* ======== CONFIG ======== */
+const API_BASE = '/api';
 
-function getProducts(){
-  return JSON.parse(localStorage.getItem(STORE_KEY) || '[]');
+/* ======== API HELPERS ======== */
+async function apiCall(endpoint, method = 'GET', body = null) {
+  const headers = { 'Content-Type': 'application/json' };
+  
+  const options = { method, headers };
+  if (body) options.body = JSON.stringify(body);
+  
+  try {
+    const response = await fetch(`${API_BASE}${endpoint}`, options);
+    const data = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(data.error || `API Error: ${response.status}`);
+    }
+    
+    return data.data || data;
+  } catch (error) {
+    console.error(`API call failed (${method} ${endpoint}):`, error);
+    throw error;
+  }
 }
-function getOrders(){
-  return JSON.parse(localStorage.getItem(ORDER_KEY) || '[]');
+
+/* ======== DATA FUNCTIONS ======== */
+async function getProducts() {
+  try {
+    const data = await apiCall('/products');
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    showToast('Failed to load products');
+    return [];
+  }
 }
-function saveOrders(list){
-  localStorage.setItem(ORDER_KEY, JSON.stringify(list));
-  if(syncChannel) syncChannel.postMessage({ key: ORDER_KEY });
+
+async function getOrders() {
+  return []; // Customer doesn't fetch orders
 }
+
+async function saveOrders(list) {
+  try {
+    const order = list[0]; // Assuming we're saving a single order
+    if (!order) throw new Error('No order to save');
+    
+    // Call API to create order
+    await apiCall('/orders', 'POST', order);
+  } catch (error) {
+    console.error('Failed to save order:', error);
+    throw error;
+  }
+}
+
+async function addQuery(query) {
+  try {
+    await apiCall('/orders', 'POST', query);
+  } catch (error) {
+    console.error('Failed to save query:', error);
+    throw error;
+  }
+}
+
+/* ======== SHARED CONFIG ======== */
+const GLYPHS = { electronics:'💡', furniture:'🪵', rowater:'💧' };
+const CAT_LABELS = { electronics:'Electronics', furniture:'Furniture', rowater:'RO Water' };
+
 function uid(){ return 'id_' + Date.now() + '_' + Math.random().toString(36).slice(2,8); }
 function money(n){ return '₹' + Number(n).toLocaleString('en-IN'); }
 
-const GLYPHS = { electronics:'💡', furniture:'🪵', rowater:'💧' };
-const CAT_LABELS = { electronics:'Electronics', furniture:'Furniture', rowater:'RO Water' };
+function escapeHtml(str){
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
 
 /* ---------------- Country dial codes (default: India) ---------------- */
 const COUNTRIES = [
@@ -688,75 +740,79 @@ let modalColorId = null;
 let selectedColorByProduct = {}; // productId -> colorId, for quick-add on cards
 
 /* ---------------- Render catalog ---------------- */
-function renderCatalog(){
-  const products = getProducts().filter(p => p.published);
+async function renderCatalog(){
+  try {
+    const products = (await getProducts()).filter(p => p.published);
 
-  let list = products;
-  if(activeFilter !== 'all') list = list.filter(p => p.category === activeFilter);
-  if(searchTerm.trim()){
-    const t = searchTerm.toLowerCase();
-    list = list.filter(p => p.name.toLowerCase().includes(t) || (p.description||'').toLowerCase().includes(t) || (p.brand||'').toLowerCase().includes(t));
-  }
+    let list = products;
+    if(activeFilter !== 'all') list = list.filter(p => p.category === activeFilter);
+    if(searchTerm.trim()){
+      const t = searchTerm.toLowerCase();
+      list = list.filter(p => p.name.toLowerCase().includes(t) || (p.description||'').toLowerCase().includes(t) || (p.brand||'').toLowerCase().includes(t));
+    }
 
-  const grid = document.getElementById('productGrid');
-  const empty = document.getElementById('emptyState');
-  grid.innerHTML = '';
+    const grid = document.getElementById('productGrid');
+    const empty = document.getElementById('emptyState');
+    grid.innerHTML = '';
 
-  if(list.length === 0){
-    empty.style.display = 'block';
-    return;
-  }
-  empty.style.display = 'none';
+    if(list.length === 0){
+      empty.style.display = 'block';
+      return;
+    }
+    empty.style.display = 'none';
 
-  list.forEach(p => {
-    const discountPct = p.discount > 0 ? p.discount : 0;
-    const finalPrice = discountPct > 0 ? Math.round(p.price * (1 - discountPct/100)) : p.price;
-    const colors = p.colors || [];
-    const currentColorId = selectedColorByProduct[p.id] || (colors[0] ? colors[0].id : null);
-    const card = document.createElement('div');
-    card.className = 'card';
-    card.innerHTML = `
-      <div class="card-media">
-        ${discountPct > 0 ? `<div class="badge">-${discountPct}%</div>` : ''}
-        <div class="cat-tag">${CAT_LABELS[p.category] || p.category}</div>
-        ${p.image ? `<img src="${p.image}" alt="${escapeHtml(p.name)}">` : `<div class="glyph">${GLYPHS[p.category] || '📦'}</div>`}
-      </div>
-      <div class="card-body">
-        <h3>${escapeHtml(p.name)}</h3>
-        ${p.brand ? `<div class="brand-tag">${escapeHtml(p.brand)}</div>` : ''}
-        <p>${escapeHtml(p.description || '')}</p>
-        ${colors.length ? `<div class="color-row">
-          <span class="clbl">Color:</span>
-          ${colors.map(c => `<span class="swatch ${currentColorId===c.id?'selected':''}" style="background:${c.hex}" data-cid="${c.id}" title="${escapeHtml(c.name)}"></span>`).join('')}
-        </div>` : ''}
-        <div class="price-row">
-          <span class="price-now mono">${money(finalPrice)}</span>
-          ${discountPct > 0 ? `<span class="price-old mono">${money(p.price)}</span>` : ''}
+    list.forEach(p => {
+      const discountPct = p.discount > 0 ? p.discount : 0;
+      const finalPrice = discountPct > 0 ? Math.round(p.price * (1 - discountPct/100)) : p.price;
+      const colors = p.colors || [];
+      const currentColorId = selectedColorByProduct[p.id] || (colors[0] ? colors[0].id : null);
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.innerHTML = `
+        <div class="card-media">
+          ${discountPct > 0 ? `<div class="badge">-${discountPct}%</div>` : ''}
+          <div class="cat-tag">${CAT_LABELS[p.category] || p.category}</div>
+          ${p.image ? `<img src="${p.image}" alt="${escapeHtml(p.name)}">` : `<div class="glyph">${GLYPHS[p.category] || '📦'}</div>`}
         </div>
-        ${discountPct > 0 ? `<span class="save-tag">You save ${money(p.price - finalPrice)}</span>` : ''}
-        <div class="card-actions">
-          <button class="add-btn" data-id="${p.id}">Add to Cart</button>
+        <div class="card-body">
+          <h3>${escapeHtml(p.name)}</h3>
+          ${p.brand ? `<div class="brand-tag">${escapeHtml(p.brand)}</div>` : ''}
+          <p>${escapeHtml(p.description || '')}</p>
+          ${colors.length ? `<div class="color-row">
+            <span class="clbl">Color:</span>
+            ${colors.map(c => `<span class="swatch ${currentColorId===c.id?'selected':''}" style="background:${c.hex}" data-cid="${c.id}" title="${escapeHtml(c.name)}"></span>`).join('')}
+          </div>` : ''}
+          <div class="price-row">
+            <span class="price-now mono">${money(finalPrice)}</span>
+            ${discountPct > 0 ? `<span class="price-old mono">${money(p.price)}</span>` : ''}
+          </div>
+          ${discountPct > 0 ? `<span class="save-tag">You save ${money(p.price - finalPrice)}</span>` : ''}
+          <div class="card-actions">
+            <button class="add-btn" data-id="${p.id}">Add to Cart</button>
+          </div>
         </div>
-      </div>
-    `;
-    card.querySelector('.card-media').addEventListener('click', () => openModal(p));
-    card.querySelector('h3').addEventListener('click', () => openModal(p));
-    card.querySelectorAll('.swatch').forEach(sw => {
-      sw.addEventListener('click', (e) => {
-        e.stopPropagation();
-        selectedColorByProduct[p.id] = sw.dataset.cid;
-        renderCatalog();
+      `;
+      card.querySelector('.card-media').addEventListener('click', () => openModal(p));
+      card.querySelector('h3').addEventListener('click', () => openModal(p));
+      card.querySelectorAll('.swatch').forEach(sw => {
+        sw.addEventListener('click', (e) => {
+          e.stopPropagation();
+          selectedColorByProduct[p.id] = sw.dataset.cid;
+          renderCatalog();
+        });
       });
+      card.querySelector('.add-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        const cid = selectedColorByProduct[p.id] || (colors[0] ? colors[0].id : null);
+        const color = colors.find(c => c.id === cid) || null;
+        addToCart(p, 1, color);
+        showToast(`${p.name} added to cart`);
+      });
+      grid.appendChild(card);
     });
-    card.querySelector('.add-btn').addEventListener('click', (e) => {
-      e.stopPropagation();
-      const cid = selectedColorByProduct[p.id] || (colors[0] ? colors[0].id : null);
-      const color = colors.find(c => c.id === cid) || null;
-      addToCart(p, 1, color);
-      showToast(`${p.name} added to cart`);
-    });
-    grid.appendChild(card);
-  });
+  } catch(err) {
+    showToast(`Error loading products: ${err.message}`);
+  }
 }
 
 function escapeHtml(str){
@@ -925,11 +981,10 @@ document.getElementById('backToCart').addEventListener('click', () => {
 });
 
 /* ---------------- Place order -> lands in admin selling page ---------------- */
-document.getElementById('orderForm').addEventListener('submit', (e) => {
+document.getElementById('orderForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   if(!validatePhoneField('oPhone', 'oPhoneField')) return;
   const order = {
-    id: uid(),
     type: 'order',
     createdAt: new Date().toISOString(),
     customerName: document.getElementById('oName').value.trim(),
@@ -940,25 +995,26 @@ document.getElementById('orderForm').addEventListener('submit', (e) => {
     total: cartTotal(),
     status: 'New'
   };
-  const orders = getOrders();
-  orders.unshift(order);
-  saveOrders(orders);
-
-  cart = [];
-  renderCart();
-  closeDrawer();
-  document.getElementById('orderForm').reset();
-  document.getElementById('oPhoneField').classList.remove('has-error');
-  populatePhoneCC(document.getElementById('oPhoneCC'));
-  showToast('Order placed! The store has received your order.');
+  
+  try {
+    await saveOrders([order]);
+    cart = [];
+    renderCart();
+    closeDrawer();
+    document.getElementById('orderForm').reset();
+    document.getElementById('oPhoneField').classList.remove('has-error');
+    populatePhoneCC(document.getElementById('oPhoneCC'));
+    showToast('Order placed! The store has received your order.');
+  } catch(err) {
+    showToast(`Error placing order: ${err.message}`);
+  }
 });
 
-/* ---------------- General query ---------------- */
-document.getElementById('generalQueryForm').addEventListener('submit', (e) => {
+/* ======== GENERAL QUERY ======== */
+document.getElementById('generalQueryForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   if(!validatePhoneField('qPhone', 'qPhoneField')) return;
   const query = {
-    id: uid(),
     type: 'query',
     createdAt: new Date().toISOString(),
     customerName: document.getElementById('qName').value.trim(),
@@ -968,16 +1024,19 @@ document.getElementById('generalQueryForm').addEventListener('submit', (e) => {
     total: 0,
     status: 'New'
   };
-  const orders = getOrders();
-  orders.unshift(query);
-  saveOrders(orders);
-  e.target.reset();
-  document.getElementById('qPhoneField').classList.remove('has-error');
-  populatePhoneCC(document.getElementById('qPhoneCC'));
-  showToast('Your question was sent to the store.');
+  
+  try {
+    await addQuery(query);
+    e.target.reset();
+    document.getElementById('qPhoneField').classList.remove('has-error');
+    populatePhoneCC(document.getElementById('qPhoneCC'));
+    showToast('Your question was sent to the store.');
+  } catch(err) {
+    showToast(`Error sending query: ${err.message}`);
+  }
 });
 
-/* ---------------- Toast ---------------- */
+/* ======== TOAST ======== */
 let toastTimer;
 function showToast(msg){
   const t = document.getElementById('toast');
@@ -987,36 +1046,16 @@ function showToast(msg){
   toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
 }
 
-/* ---------------- Live sync across tabs (admin publishes -> customer updates) ---------------- */
-window.addEventListener('storage', (e) => {
-  if(e.key === STORE_KEY) renderCatalog();
-});
-if(syncChannel){
-  syncChannel.addEventListener('message', (e) => {
-    if(e.data && e.data.key === STORE_KEY) renderCatalog();
-  });
-}
+/* ======== AUTO-REFRESH: Poll API every 10 seconds for new products ======== */
+setInterval(() => {
+  renderCatalog();
+}, 10000);
 
-/* ---------------- Seed demo data if store is empty (first run) ---------------- */
-function seedIfEmpty(){
-  if(getProducts().length > 0) return;
-  const demo = [
-    { id: uid(), name:'Smart LED TV 43"', brand:'Samsung', category:'electronics', price:24999, discount:10, description:'Full HD smart display with built-in streaming apps and voice remote.', published:true, colors:[{id:uid(), name:'Black', hex:'#1B2A4A'}] },
-    { id: uid(), name:'Solid Wood Dining Table', brand:'WoodCraft', category:'furniture', price:18500, discount:0, description:'6-seater sheesham wood dining table with a natural matte finish.', published:true, colors:[{id:uid(), name:'Walnut', hex:'#6B4226'},{id:uid(), name:'Natural Oak', hex:'#C9A86A'}] },
-    { id: uid(), name:'Wireless Bluetooth Speaker', brand:'JBL', category:'electronics', price:1899, discount:15, description:'Portable speaker with 12-hour battery and deep bass.', published:true, colors:[{id:uid(), name:'Red', hex:'#B54747'},{id:uid(), name:'Black', hex:'#1B2A4A'},{id:uid(), name:'Blue', hex:'#3B5BA5'}] },
-    { id: uid(), name:'3-Seater Recliner Sofa', brand:'Urban Living', category:'furniture', price:32999, discount:8, description:'Fabric upholstered recliner sofa, built for long evenings.', published:true, colors:[] },
-    { id: uid(), name:'RO+UV Water Purifier', brand:'Kaviya', category:'rowater', price:8999, discount:5, description:'7-stage RO+UV purification with 8L storage tank and mineral cartridge.', published:true, colors:[{id:uid(), name:'White', hex:'#FFFFFF'},{id:uid(), name:'Black', hex:'#1B2A4A'}] }
-  ];
-  localStorage.setItem(STORE_KEY, JSON.stringify(demo));
-  if(syncChannel) syncChannel.postMessage({ key: STORE_KEY });
-}
-
-/* ---------------- Init ---------------- */
+/* ======== INIT ======== */
 populatePhoneCC(document.getElementById('qPhoneCC'));
 populatePhoneCC(document.getElementById('oPhoneCC'));
 setupPhoneField('qPhone', 'qPhoneField');
 setupPhoneField('oPhone', 'oPhoneField');
-seedIfEmpty();
 renderCatalog();
 renderCart();
 </script>
