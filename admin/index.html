@@ -212,16 +212,16 @@
 <!-- ===================== ADMIN SHELL ===================== -->
 <div class="shell" id="shell">
   <aside class="sidebar">
-    <div class="side-brand">
+    <a href="https://customer-ashy-nu.vercel.app/customer.html" target="_blank" class="side-brand" style="text-decoration:none; color:inherit; cursor:pointer;" title="Visit Customer Storefront: Sri Balu Electronics & Furnitures">
       <svg width="30" height="30" viewBox="0 0 40 40" fill="none">
         <rect width="40" height="40" rx="10" fill="#E8A33D"/>
         <path d="M9 20h6l2-6 4 12 2-6h8" stroke="#1B2A4A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
       <div>
-        <div class="name">Sri Balu</div>
-        <div class="tag">Admin Panel</div>
+        <div class="name" style="font-size:14px; font-weight:700; line-height:1.2;">Sri Balu Electronics &amp; Furnitures</div>
+        <div class="tag" style="color:var(--amber); margin-top:2px; font-size:10px;">Customer Storefront ↗</div>
       </div>
-    </div>
+    </a>
     <nav class="side-nav">
       <button class="active" data-view="dashboard">📊 Dashboard</button>
       <button data-view="products">🛒 Products</button>
@@ -238,7 +238,9 @@
           API: <a href="javascript:void(0)" onclick="configureApiUrl()" style="color:#63B3ED; text-decoration:underline;" id="currentApiDisplay">/api</a>
         </div>
       </div>
-      <a href="customer.html" target="_blank" class="logout-btn" style="display:block; text-align:center; text-decoration:none; margin-bottom:8px;">View Storefront ↗</a>
+      <a href="https://customer-ashy-nu.vercel.app/customer.html" target="_blank" class="logout-btn" style="display:block; text-align:center; text-decoration:none; margin-bottom:8px; background:rgba(232,163,61,0.18); border:1px solid var(--amber); color:var(--amber); font-weight:600;">
+        Open Customer Storefront ↗
+      </a>
       <button class="logout-btn" id="logoutBtn">Log Out</button>
     </div>
   </aside>

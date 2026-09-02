@@ -606,7 +606,19 @@ async function apiCall(endpoint, method = 'GET', body = null) {
   if (body) options.body = JSON.stringify(body);
   
   try {
-    const response = await fetch(`${API_BASE}${endpoint}`, options);
+    let response = await fetch(`${API_BASE}${endpoint}`, options);
+
+    // If customer-ashy-nu project returns 404 because API is hosted on sri-balu-store or sribalu-admin.com
+    if (!response.ok && response.status === 404 && API_BASE === '/api' && window.location.hostname.includes('customer-ashy-nu')) {
+      const fallbackUrl = `https://sri-balu-store.vercel.app/api${endpoint}`;
+      try {
+        const fbRes = await fetch(fallbackUrl, options);
+        if (fbRes.ok) response = fbRes;
+      } catch (fbErr) {
+        // Fallback failed, continue with original response
+      }
+    }
+
     const data = await response.json();
     
     if (!response.ok) {
@@ -1095,7 +1107,16 @@ function showToast(msg){
 /* ======== STORE MESSAGE SYNC ======== */
 async function loadMessage() {
   try {
-    const response = await fetch(`${API_BASE}/store-message`);
+    let response = await fetch(`${API_BASE}/store-message`);
+
+    if (!response.ok && response.status === 404 && API_BASE === '/api' && window.location.hostname.includes('customer-ashy-nu')) {
+      const fallbackUrl = `https://sri-balu-store.vercel.app/api/store-message`;
+      try {
+        const fbRes = await fetch(fallbackUrl);
+        if (fbRes.ok) response = fbRes;
+      } catch (fbErr) {}
+    }
+
     const data = await response.json();
     const msg = data.message || (data.data && data.data.text) || '';
     const banner = document.getElementById('storeAnnouncementBanner');
