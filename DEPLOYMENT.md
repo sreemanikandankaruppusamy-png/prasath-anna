@@ -51,11 +51,10 @@ vercel env pull
 This creates/updates `.env.local` with `KV_URL`
 
 ### 1.7 Set API Secret Token
-Edit `.env.local` and update both lines:
+Edit `.env.local` and set `API_SECRET_TOKEN`:
 ```
 KV_URL=redis://default:...@... (auto-filled, don't change)
 API_SECRET_TOKEN=my-super-secure-admin-token-2024
-NEXT_PUBLIC_API_SECRET_TOKEN=my-super-secure-admin-token-2024
 ```
 
 Choose a strong token (at least 20 characters):
@@ -118,7 +117,6 @@ cat .env.local  # Check if KV_URL is there
 Edit `.env.local` and change API token to something new:
 ```
 API_SECRET_TOKEN=production-admin-token-super-secure-12345
-NEXT_PUBLIC_API_SECRET_TOKEN=production-admin-token-super-secure-12345
 ```
 
 **IMPORTANT**: Use a DIFFERENT token than development!
@@ -127,10 +125,6 @@ NEXT_PUBLIC_API_SECRET_TOKEN=production-admin-token-super-secure-12345
 ```bash
 # Set production environment variable
 vercel env add API_SECRET_TOKEN
-# When prompted, enter: production-admin-token-super-secure-12345
-# Select: Production environment only
-
-vercel env add NEXT_PUBLIC_API_SECRET_TOKEN
 # When prompted, enter: production-admin-token-super-secure-12345
 # Select: Production environment only
 
@@ -144,11 +138,6 @@ Or via **Vercel Dashboard**:
 3. Add:
    ```
    API_SECRET_TOKEN = production-admin-token-super-secure-12345
-   ```
-   - Environments: Production ✓
-4. Add:
-   ```
-   NEXT_PUBLIC_API_SECRET_TOKEN = production-admin-token-super-secure-12345
    ```
    - Environments: Production ✓
 
@@ -207,7 +196,6 @@ vercel link
 **Admin Project:**
 ```
 API_SECRET_TOKEN = production-admin-token-super-secure-12345
-NEXT_PUBLIC_API_SECRET_TOKEN = production-admin-token-super-secure-12345
 ```
 
 **Customer Project:**
@@ -371,7 +359,6 @@ Vercel → Project → Settings → Integrations
 ```
 KV_URL = redis://default:[PASSWORD]@[HOST]:[PORT]
 API_SECRET_TOKEN = production-admin-token-super-secure-12345
-NEXT_PUBLIC_API_SECRET_TOKEN = production-admin-token-super-secure-12345
 ```
 
 **Database**:

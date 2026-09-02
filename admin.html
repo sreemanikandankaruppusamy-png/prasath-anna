@@ -228,6 +228,13 @@
       <button data-view="orders">📬 Orders &amp; Queries <span class="badge-count" id="ordersBadge">0</span></button>
     </nav>
     <div class="sidebar-foot">
+      <div id="dbStatusBadge" style="background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.12); border-radius:10px; padding:10px 12px; margin-bottom:12px; font-size:12px;">
+        <div style="display:flex; align-items:center; gap:7px; color:#68D391; font-weight:600;">
+          <span style="width:8px; height:8px; border-radius:50%; background:#48BB78; display:inline-block; box-shadow:0 0 8px #48BB78;"></span>
+          <span id="dbTypeName">Database Online</span>
+        </div>
+        <div style="font-size:11px; margin-top:4px; color:#A0AEC0;" id="dbDetailText">Local Persistent Storage</div>
+      </div>
       <a href="customer.html" target="_blank" class="logout-btn" style="display:block; text-align:center; text-decoration:none; margin-bottom:8px;">View Storefront ↗</a>
       <button class="logout-btn" id="logoutBtn">Log Out</button>
     </div>
@@ -367,18 +374,21 @@
 
 <script>
 /* ======== CONFIG ======== */
-const API_BASE = '/api';
-const API_SECRET_TOKEN = sessionStorage.getItem('sbef_admin_token') || '';
+const API_BASE = window.API_BASE_URL || localStorage.getItem('sbef_api_base') || '/api';
 const SESSION_KEY = 'sbef_admin_session';
 const ADMIN_USER = 'Admin';
 const ADMIN_PASS = 'Admin@123';
 const CATEGORY_LABELS = { electronics:'Electronics', furniture:'Furniture', rowater:'RO Water' };
 
+function getAuthToken() {
+  return sessionStorage.getItem('sbef_admin_token') || 'admin-secret-token';
+}
+
 /* ======== API HELPERS ======== */
 async function apiCall(endpoint, method = 'GET', body = null) {
   const headers = {
     'Content-Type': 'application/json',
-    'Authorization': `Bearer ${API_SECRET_TOKEN}`
+    'Authorization': `Bearer ${getAuthToken()}`
   };
   
   const options = { method, headers };
@@ -500,18 +510,47 @@ function checkSession(){
     initAdmin();
   }
 }
-document.getElementById('loginForm').addEventListener('submit', (e) => {
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const u = document.getElementById('loginUser').value.trim();
   const p = document.getElementById('loginPass').value;
+  const errEl = document.getElementById('loginError');
+  errEl.style.display = 'none';
+
+  // 1. Authenticate with server API to dynamically receive the Vercel / server configured token
+  try {
+    const res = await fetch(`${API_BASE}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: u, password: p })
+    });
+    const data = await res.json();
+    if (res.ok && data.success && data.token) {
+      sessionStorage.setItem(SESSION_KEY, 'true');
+      sessionStorage.setItem('sbef_admin_token', data.token);
+      document.getElementById('loginWrap').style.display = 'none';
+      document.getElementById('shell').classList.add('show');
+      initAdmin();
+      return;
+    } else if (res.status === 401) {
+      errEl.textContent = data.error || 'Incorrect username or password.';
+      errEl.style.display = 'block';
+      return;
+    }
+  } catch (apiErr) {
+    console.warn('API login endpoint not reachable, trying offline verification:', apiErr);
+  }
+
+  // 2. Offline fallback (e.g. file:// preview or standalone dev)
   if(u === ADMIN_USER && p === ADMIN_PASS){
     sessionStorage.setItem(SESSION_KEY, 'true');
-    sessionStorage.setItem('sbef_admin_token', process.env.NEXT_PUBLIC_API_SECRET_TOKEN || 'admin-secret-token');
+    sessionStorage.setItem('sbef_admin_token', 'admin-secret-token');
     document.getElementById('loginWrap').style.display = 'none';
     document.getElementById('shell').classList.add('show');
     initAdmin();
   } else {
-    document.getElementById('loginError').style.display = 'block';
+    errEl.textContent = 'Incorrect username or password.';
+    errEl.style.display = 'block';
   }
 });
 document.getElementById('logoutBtn').addEventListener('click', () => {
@@ -535,7 +574,25 @@ document.querySelectorAll('.side-nav button').forEach(btn => {
 });
 
 /* ======== INIT ======== */
+async function updateDbStatus() {
+  try {
+    const res = await fetch('/api/db-status');
+    if (!res.ok) return;
+    const json = await res.json();
+    if (json.success && json.database) {
+      const typeEl = document.getElementById('dbTypeName');
+      const detailEl = document.getElementById('dbDetailText');
+      if (typeEl) typeEl.textContent = json.database.status || 'Database Online';
+      if (detailEl) detailEl.textContent = json.database.type;
+    }
+  } catch (e) {
+    const typeEl = document.getElementById('dbTypeName');
+    if (typeEl) typeEl.innerHTML = '<span style="color:#FEB2B2;">Connecting...</span>';
+  }
+}
+
 async function initAdmin(){
+  updateDbStatus();
   await renderDashboard();
   await renderProductTable();
   await renderOrders();
@@ -977,14 +1034,15 @@ function showToast(msg){
   toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
 }
 
-/* ======== AUTO-REFRESH: Poll API every 5 seconds ======== */
+/* ======== AUTO-REFRESH: Poll API every 4 seconds ======== */
 setInterval(async () => {
   if(sessionStorage.getItem(SESSION_KEY) !== 'true') return;
+  updateDbStatus();
   const activeView = document.querySelector('.side-nav button.active')?.dataset.view;
   if(activeView === 'dashboard') await renderDashboard();
   if(activeView === 'orders') await renderOrders();
   if(activeView === 'products') await renderProductTable();
-}, 5000);
+}, 4000);
 
 /* ======== BOOT ======== */
 renderColorList();

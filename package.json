@@ -2,18 +2,22 @@
   "name": "sri-balu-store",
   "version": "1.0.0",
   "description": "Shared Admin & Customer Store Frontend with Vercel KV Backend",
-  "main": "index.js",
+  "main": "server.js",
   "scripts": {
-    "dev": "vercel dev",
-    "build": "echo 'No build required for HTML-based frontend'",
-    "start": "echo 'Deployed to Vercel'"
+    "start": "node server.js",
+    "dev": "node server.js",
+    "vercel-dev": "vercel dev",
+    "build": "echo 'No build required for HTML-based frontend'"
   },
-  "keywords": ["vercel", "kv", "api"],
+  "keywords": ["store", "admin", "customer", "database", "api"],
   "author": "",
   "license": "MIT",
   "dependencies": {
     "@vercel/kv": "^0.2.0",
-    "@vercel/node": "^2.14.0"
+    "@vercel/node": "^2.14.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2"
   },
   "devDependencies": {
     "typescript": "^5.0.0"

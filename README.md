@@ -85,7 +85,6 @@ Edit `.env.local` and set a strong token:
 ```
 KV_URL=redis://default:...@... (auto-filled by Vercel)
 API_SECRET_TOKEN=your-secure-admin-token-here-change-in-production
-NEXT_PUBLIC_API_SECRET_TOKEN=your-secure-admin-token-here-change-in-production
 ```
 
 ### Step 6: Start Development Server
@@ -102,22 +101,20 @@ Access:
 ## 📦 Production Deployment
 
 ### Deployment Step 1: Set Environment Variables on Vercel
-```bash
-# Open Vercel CLI and set production env vars
-vercel env add API_SECRET_TOKEN
-# Enter: your-production-admin-token (different from dev!)
-```
-
-Or via Vercel Dashboard:
+In your Vercel Dashboard:
 1. Go to your project → **Settings** → **Environment Variables**
 2. Add:
    - Key: `API_SECRET_TOKEN`
    - Value: `your-production-admin-token`
-   - Environments: `Production`
-3. Add:
-   - Key: `NEXT_PUBLIC_API_SECRET_TOKEN`
-   - Value: Same as above
-   - Environments: `Production`
+   - Environments: `Production`, `Preview`, `Development`
+3. *(Optional)* If you want to customize admin login credentials:
+   - Key: `ADMIN_USERNAME` (Default: `Admin`)
+   - Key: `ADMIN_PASSWORD` (Default: `Admin@123`)
+
+> [!NOTE]
+> **How the applications receive this token automatically:**
+> - **Admin Dashboard**: When you sign in on `admin.html`, the application automatically calls `POST /api/auth/login`. The server verifies your credentials and returns the active `API_SECRET_TOKEN` from Vercel's environment variables to your session. You **never** have to edit or hardcode tokens in HTML files!
+> - **Customer Storefront**: The customer store is public and **does not need** `API_SECRET_TOKEN`. This prevents shoppers from accessing admin powers. Customer actions (`GET /api/products` and `POST /api/orders`) work out of the box.
 
 ### Deployment Step 2: Deploy
 ```bash
@@ -125,12 +122,12 @@ Or via Vercel Dashboard:
 vercel --prod
 ```
 
-### Deployment Step 3: Update HTML Files with Production API
+### Deployment Step 3: Verify Relative API Paths
 In both `admin.html` and `customer.html`, the line:
 ```javascript
 const API_BASE = '/api';
 ```
-is **already correct** - it uses relative paths, so it works on any domain.
+is **already configured** with relative paths, so it seamlessly calls your Vercel serverless functions on any custom domain or `.vercel.app` URL.
 
 ### Deployment Step 4: Test
 - Admin: `https://your-domain.vercel.app/admin.html`
