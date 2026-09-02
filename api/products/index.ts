@@ -1,7 +1,5 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { kv } from '@vercel/kv';
-
-const PRODUCTS_KEY = 'sbef:products';
+import { dbGetProducts, dbSaveProduct } from '../lib/db';
 
 interface Product {
   id: string;
@@ -41,7 +39,7 @@ export default async function handler(
   try {
     if (req.method === 'GET') {
       // Get all products (public read)
-      const products = (await kv.get(PRODUCTS_KEY)) || [];
+      const products = await dbGetProducts();
       return res.status(200).json({ success: true, data: products });
     }
 
@@ -69,16 +67,13 @@ export default async function handler(
         discount: parseFloat(discount) || 0,
         description: description?.trim() || '',
         image: image || null,
-        published: false,
+        published: true,
         colors: colors || [],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
 
-      const products = (await kv.get(PRODUCTS_KEY)) || [];
-      products.push(newProduct);
-      await kv.set(PRODUCTS_KEY, products);
-
+      await dbSaveProduct(newProduct);
       return res.status(201).json({ success: true, data: newProduct });
     }
 

@@ -37,6 +37,44 @@
   img{max-width:100%;display:block;}
   ::selection{ background:var(--amber); color:var(--ink); }
 
+  /* ---------- Store Announcement Banner ---------- */
+  .store-announcement{
+    background: linear-gradient(90deg, var(--ink) 0%, #24355A 50%, var(--walnut) 100%);
+    color: var(--cream);
+    padding: 11px 20px;
+    font-size: 13.5px;
+    border-bottom: 1px solid rgba(232, 163, 61, 0.4);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    position: relative;
+    z-index: 50;
+    transition: all .3s ease;
+  }
+  .announcement-inner{
+    max-width: 1180px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    text-align: center;
+    flex-wrap: wrap;
+  }
+  .announcement-badge{
+    background: var(--amber);
+    color: var(--ink);
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    padding: 3px 8px;
+    border-radius: 6px;
+    flex: none;
+  }
+  .announcement-text{
+    font-weight: 500;
+    line-height: 1.4;
+  }
+
   /* ---------- Header ---------- */
   header{
     position:sticky; top:0; z-index:40;
@@ -313,6 +351,14 @@
 </style>
 </head>
 <body>
+
+<!-- Store Announcement Banner (Live broadcast from Admin) -->
+<div id="storeAnnouncementBanner" class="store-announcement" style="display:none;">
+  <div class="announcement-inner">
+    <span class="announcement-badge">Announcement</span>
+    <span id="storeMessage" class="announcement-text"></span>
+  </div>
+</div>
 
 <header>
   <div class="nav">
@@ -1046,10 +1092,31 @@ function showToast(msg){
   toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
 }
 
-/* ======== AUTO-REFRESH: Poll API every 10 seconds for new products ======== */
+/* ======== STORE MESSAGE SYNC ======== */
+async function loadMessage() {
+  try {
+    const response = await fetch(`${API_BASE}/store-message`);
+    const data = await response.json();
+    const msg = data.message || (data.data && data.data.text) || '';
+    const banner = document.getElementById('storeAnnouncementBanner');
+    const msgEl = document.getElementById('storeMessage');
+    
+    if (msgEl) msgEl.textContent = msg;
+    if (banner) {
+      banner.style.display = (msg && msg.trim()) ? 'block' : 'none';
+    }
+  } catch (e) {
+    // Silently continue
+  }
+}
+
+loadMessage();
+setInterval(loadMessage, 10000);
+
+/* ======== AUTO-REFRESH: Poll API every 8 seconds for new products ======== */
 setInterval(() => {
   renderCatalog();
-}, 10000);
+}, 8000);
 
 /* ======== INIT ======== */
 populatePhoneCC(document.getElementById('qPhoneCC'));

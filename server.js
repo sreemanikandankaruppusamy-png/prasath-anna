@@ -263,6 +263,26 @@ class LocalDatabase {
     });
     return { products: INITIAL_PRODUCTS, orders: INITIAL_ORDERS };
   }
+
+  getAnnouncement() {
+    const data = this.read();
+    return data.announcement || {
+      text: 'Special Offer: Free delivery & installation in Erode on all orders above ₹10,000!',
+      enabled: true,
+      updatedAt: new Date().toISOString()
+    };
+  }
+
+  setAnnouncement(announcement) {
+    const data = this.read();
+    data.announcement = {
+      text: announcement.text || '',
+      enabled: announcement.enabled !== false,
+      updatedAt: new Date().toISOString()
+    };
+    this.write(data);
+    return data.announcement;
+  }
 }
 
 const db = new LocalDatabase(DB_FILE);
@@ -356,6 +376,37 @@ app.get('/api/db-status', (req, res) => {
 app.post('/api/seed', checkAdminAuth, (req, res) => {
   const result = db.resetDemo();
   res.json({ success: true, message: 'Database reset to demo data', data: result });
+});
+
+// --- STORE MESSAGE / ANNOUNCEMENT API ---
+app.get('/api/store-message', (req, res) => {
+  const data = db.getAnnouncement();
+  const msg = (data && data.text) ? data.text : '';
+  res.json({ success: true, message: msg, data: data });
+});
+
+app.put('/api/store-message', checkAdminAuth, (req, res) => {
+  const { message, text, enabled } = req.body || {};
+  const msg = message !== undefined ? message : (text || '');
+  const updated = db.setAnnouncement({ text: msg, enabled: enabled !== false });
+  res.json({ success: true, message: msg, data: updated });
+});
+
+app.post('/api/store-message', checkAdminAuth, (req, res) => {
+  const { message, text, enabled } = req.body || {};
+  const msg = message !== undefined ? message : (text || '');
+  const updated = db.setAnnouncement({ text: msg, enabled: enabled !== false });
+  res.json({ success: true, message: msg, data: updated });
+});
+
+app.get('/api/announcement', (req, res) => {
+  res.json({ success: true, data: db.getAnnouncement() });
+});
+
+app.post('/api/announcement', checkAdminAuth, (req, res) => {
+  const { text, enabled } = req.body || {};
+  const updated = db.setAnnouncement({ text, enabled });
+  res.json({ success: true, data: updated });
 });
 
 // --- PRODUCTS API ---

@@ -1,7 +1,5 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { kv } from '@vercel/kv';
-
-const PRODUCTS_KEY = 'sbef:products';
+import { dbGetProducts, dbSaveProduct, dbDeleteProduct } from '../lib/db';
 
 interface Product {
   id: string;
@@ -40,93 +38,74 @@ export default async function handler(
 
   try {
     const { id } = req.query;
+    const products = await dbGetProducts();
+    const product = products.find((p: Product) => p.id === id);
 
     if (req.method === 'GET') {
-      // Get single product
-      const products = (await kv.get(PRODUCTS_KEY)) || [];
-      const product = products.find((p: Product) => p.id === id);
-      
       if (!product) {
         return res.status(404).json({ success: false, error: 'Product not found' });
       }
-
       return res.status(200).json({ success: true, data: product });
     }
 
     if (req.method === 'PUT') {
-      // Update product (admin only)
       if (!isAuthorized(req)) {
         return res.status(401).json({ success: false, error: 'Unauthorized' });
       }
 
-      const products = (await kv.get(PRODUCTS_KEY)) || [];
-      const productIndex = products.findIndex((p: Product) => p.id === id);
-
-      if (productIndex === -1) {
+      if (!product) {
         return res.status(404).json({ success: false, error: 'Product not found' });
       }
 
       const { name, brand, category, price, discount, description, image, colors, published } = req.body;
       
       const updated: Product = {
-        ...products[productIndex],
-        name: name !== undefined ? name.trim() : products[productIndex].name,
-        brand: brand !== undefined ? brand.trim() : products[productIndex].brand,
-        category: category !== undefined ? category : products[productIndex].category,
-        price: price !== undefined ? parseFloat(price) : products[productIndex].price,
-        discount: discount !== undefined ? parseFloat(discount) : products[productIndex].discount,
-        description: description !== undefined ? description.trim() : products[productIndex].description,
-        image: image !== undefined ? image : products[productIndex].image,
-        colors: colors !== undefined ? colors : products[productIndex].colors,
-        published: published !== undefined ? published : products[productIndex].published,
+        ...product,
+        name: name !== undefined ? name.trim() : product.name,
+        brand: brand !== undefined ? brand.trim() : product.brand,
+        category: category !== undefined ? category : product.category,
+        price: price !== undefined ? parseFloat(price) : product.price,
+        discount: discount !== undefined ? parseFloat(discount) : product.discount,
+        description: description !== undefined ? description.trim() : product.description,
+        image: image !== undefined ? image : product.image,
+        colors: colors !== undefined ? colors : product.colors,
+        published: published !== undefined ? published : product.published,
         updatedAt: new Date().toISOString(),
       };
 
-      products[productIndex] = updated;
-      await kv.set(PRODUCTS_KEY, products);
-
+      await dbSaveProduct(updated);
       return res.status(200).json({ success: true, data: updated });
     }
 
     if (req.method === 'PATCH') {
-      // Toggle publish status (admin only)
       if (!isAuthorized(req)) {
         return res.status(401).json({ success: false, error: 'Unauthorized' });
       }
 
-      const products = (await kv.get(PRODUCTS_KEY)) || [];
-      const productIndex = products.findIndex((p: Product) => p.id === id);
-
-      if (productIndex === -1) {
+      if (!product) {
         return res.status(404).json({ success: false, error: 'Product not found' });
       }
 
       const updated: Product = {
-        ...products[productIndex],
-        published: !products[productIndex].published,
+        ...product,
+        published: !product.published,
         updatedAt: new Date().toISOString(),
       };
 
-      products[productIndex] = updated;
-      await kv.set(PRODUCTS_KEY, products);
-
+      await dbSaveProduct(updated);
       return res.status(200).json({ success: true, data: updated });
     }
 
     if (req.method === 'DELETE') {
-      // Delete product (admin only)
       if (!isAuthorized(req)) {
         return res.status(401).json({ success: false, error: 'Unauthorized' });
       }
 
-      const products = (await kv.get(PRODUCTS_KEY)) || [];
-      const filtered = products.filter((p: Product) => p.id !== id);
-
-      if (filtered.length === products.length) {
+      const success = await dbDeleteProduct(id as string);
+      if (!success) {
         return res.status(404).json({ success: false, error: 'Product not found' });
       }
 
-      await kv.set(PRODUCTS_KEY, filtered);
       return res.status(200).json({ success: true, message: 'Product deleted' });
     }
 

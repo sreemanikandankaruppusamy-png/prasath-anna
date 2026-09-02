@@ -1,7 +1,5 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { kv } from '@vercel/kv';
-
-const ORDERS_KEY = 'sbef:orders';
+import { dbGetOrders, dbUpdateOrderStatus, dbDeleteOrder } from '../lib/db';
 
 interface Order {
   id: string;
@@ -47,7 +45,7 @@ export default async function handler(
 
     if (req.method === 'GET') {
       // Get single order
-      const orders = (await kv.get(ORDERS_KEY)) || [];
+      const orders = await dbGetOrders();
       const order = orders.find((o: Order) => o.id === id);
 
       if (!order) {
@@ -68,29 +66,21 @@ export default async function handler(
         });
       }
 
-      const orders = (await kv.get(ORDERS_KEY)) || [];
-      const orderIndex = orders.findIndex((o: Order) => o.id === id);
-
-      if (orderIndex === -1) {
+      const updated = await dbUpdateOrderStatus(id as string, status);
+      if (!updated) {
         return res.status(404).json({ success: false, error: 'Order not found' });
       }
 
-      orders[orderIndex].status = status;
-      await kv.set(ORDERS_KEY, orders);
-
-      return res.status(200).json({ success: true, data: orders[orderIndex] });
+      return res.status(200).json({ success: true, data: updated });
     }
 
     if (req.method === 'DELETE') {
       // Delete order
-      const orders = (await kv.get(ORDERS_KEY)) || [];
-      const filtered = orders.filter((o: Order) => o.id !== id);
-
-      if (filtered.length === orders.length) {
+      const success = await dbDeleteOrder(id as string);
+      if (!success) {
         return res.status(404).json({ success: false, error: 'Order not found' });
       }
 
-      await kv.set(ORDERS_KEY, filtered);
       return res.status(200).json({ success: true, message: 'Order deleted' });
     }
 

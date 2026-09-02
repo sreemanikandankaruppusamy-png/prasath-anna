@@ -9,10 +9,17 @@
     "vercel-dev": "vercel dev",
     "build": "echo 'No build required for HTML-based frontend'"
   },
-  "keywords": ["store", "admin", "customer", "database", "api"],
+  "keywords": [
+    "store",
+    "admin",
+    "customer",
+    "database",
+    "api"
+  ],
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@supabase/supabase-js": "^2.114.0",
     "@vercel/kv": "^0.2.0",
     "@vercel/node": "^2.14.0",
     "cors": "^2.8.5",

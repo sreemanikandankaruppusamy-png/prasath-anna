@@ -1,7 +1,5 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { kv } from '@vercel/kv';
-
-const ORDERS_KEY = 'sbef:orders';
+import { dbGetOrders, dbSaveOrder } from '../lib/db';
 
 interface Order {
   id: string;
@@ -44,12 +42,12 @@ export default async function handler(
         return res.status(401).json({ success: false, error: 'Unauthorized' });
       }
 
-      const orders = (await kv.get(ORDERS_KEY)) || [];
+      const orders = await dbGetOrders();
       return res.status(200).json({ success: true, data: orders });
     }
 
     if (req.method === 'POST') {
-      // Create new order/query (customer can submit without auth, but we recommend adding a simple captcha later)
+      // Create new order/query (customer can submit without auth)
       const { type, customerName, phone, message, address, notes, items, total } = req.body;
 
       if (!type || !customerName || !phone || !['order', 'query'].includes(type)) {
@@ -80,10 +78,7 @@ export default async function handler(
         status: 'New',
       };
 
-      const orders = (await kv.get(ORDERS_KEY)) || [];
-      orders.unshift(newOrder); // Add to front (newest first)
-      await kv.set(ORDERS_KEY, orders);
-
+      await dbSaveOrder(newOrder);
       return res.status(201).json({ success: true, data: newOrder });
     }
 

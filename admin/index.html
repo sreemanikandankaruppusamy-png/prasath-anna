@@ -234,6 +234,9 @@
           <span id="dbTypeName">Database Online</span>
         </div>
         <div style="font-size:11px; margin-top:4px; color:#A0AEC0;" id="dbDetailText">Local Persistent Storage</div>
+        <div style="font-size:11px; margin-top:6px; border-top:1px dashed rgba(255,255,255,0.12); padding-top:5px; color:#A0AEC0;">
+          API: <a href="javascript:void(0)" onclick="configureApiUrl()" style="color:#63B3ED; text-decoration:underline;" id="currentApiDisplay">/api</a>
+        </div>
       </div>
       <a href="customer.html" target="_blank" class="logout-btn" style="display:block; text-align:center; text-decoration:none; margin-bottom:8px;">View Storefront ↗</a>
       <button class="logout-btn" id="logoutBtn">Log Out</button>
@@ -269,6 +272,34 @@
         <div class="stat-card"><div class="num" id="statOrders">0</div><div class="lbl">New orders</div></div>
         <div class="stat-card"><div class="num" id="statQueries">0</div><div class="lbl">New queries</div></div>
       </div>
+
+      <!-- Live Store Announcement Broadcast Panel -->
+      <div class="panel" style="border-left: 4px solid var(--amber); background: var(--paper);">
+        <div class="panel-head" style="margin-bottom:12px;">
+          <div>
+            <h3 style="display:flex; align-items:center; gap:8px;">📢 Live Store Announcement &amp; Customer Message</h3>
+            <div style="font-size:13px; color:var(--slate); margin-top:3px;">
+              Updating this message instantly displays it at the top of the Customer Storefront. Use it for discounts, notices, or festival greetings.
+            </div>
+          </div>
+        </div>
+        <form id="announcementForm" style="display:flex; flex-direction:column; gap:12px;">
+          <div class="field" style="margin-bottom:0;">
+            <label>Announcement Banner Text</label>
+            <textarea id="announcementText" rows="2" placeholder="e.g. 🎉 Special Pongal Offer: Flat 15% OFF on all Samsung TVs & Free Delivery! Call: +91 98765 43210"></textarea>
+          </div>
+          <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+            <label style="display:flex; align-items:center; gap:8px; font-size:13.5px; font-weight:600; color:var(--ink); cursor:pointer;">
+              <input type="checkbox" id="announcementEnabled" checked style="width:17px; height:17px; accent-color:var(--amber);">
+              Show Announcement Banner on Customer Store
+            </label>
+            <button type="submit" class="btn btn-primary" id="saveAnnouncementBtn">
+              Save &amp; Broadcast to Customer Page
+            </button>
+          </div>
+        </form>
+      </div>
+
       <div class="panel">
         <div class="panel-head"><h3>Latest activity</h3></div>
         <div id="dashboardActivity"></div>
@@ -574,9 +605,26 @@ document.querySelectorAll('.side-nav button').forEach(btn => {
 });
 
 /* ======== INIT ======== */
+function configureApiUrl() {
+  const current = localStorage.getItem('sbef_api_base') || '/api';
+  const custom = prompt('Enter Backend API URL (or /api for same domain):', current);
+  if (custom !== null) {
+    const clean = custom.trim().replace(/\/+$/, '');
+    if (!clean || clean === '/api') {
+      localStorage.removeItem('sbef_api_base');
+    } else {
+      localStorage.setItem('sbef_api_base', clean);
+    }
+    location.reload();
+  }
+}
+
 async function updateDbStatus() {
+  const displayEl = document.getElementById('currentApiDisplay');
+  if (displayEl) displayEl.textContent = localStorage.getItem('sbef_api_base') || '/api';
+
   try {
-    const res = await fetch('/api/db-status');
+    const res = await fetch(`${API_BASE}/db-status`);
     if (!res.ok) return;
     const json = await res.json();
     if (json.success && json.database) {
@@ -591,8 +639,45 @@ async function updateDbStatus() {
   }
 }
 
+/* ======== STORE MESSAGE MANAGEMENT ======== */
+async function loadAnnouncement() {
+  try {
+    const res = await fetch(`${API_BASE}/store-message`);
+    if (!res.ok) return;
+    const json = await res.json();
+    const msg = json.message || (json.data && json.data.text) || '';
+    const textEl = document.getElementById('announcementText');
+    const enabledEl = document.getElementById('announcementEnabled');
+    if (textEl) textEl.value = msg;
+    if (enabledEl && json.data && json.data.enabled !== undefined) enabledEl.checked = json.data.enabled;
+  } catch (err) {
+    console.warn('Failed to load store message:', err);
+  }
+}
+
+document.getElementById('announcementForm')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const text = document.getElementById('announcementText').value.trim();
+  const enabled = document.getElementById('announcementEnabled').checked;
+  const btn = document.getElementById('saveAnnouncementBtn');
+  btn.disabled = true;
+  btn.textContent = 'Broadcasting...';
+
+  try {
+    // Updates /api/store-message with PUT and admin Bearer token
+    await apiCall('/store-message', 'PUT', { message: text, enabled });
+    showToast('📢 Store message updated & broadcast to Customer Storefront!');
+  } catch (err) {
+    showToast(`Failed to update store message: ${err.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Save & Broadcast to Customer Page';
+  }
+});
+
 async function initAdmin(){
   updateDbStatus();
+  loadAnnouncement();
   await renderDashboard();
   await renderProductTable();
   await renderOrders();
